@@ -29,6 +29,7 @@ jobs:
             -scheme "DiOS (NJB)" \
             -configuration "Release (Non-Jailbroken)" \
             -archivePath "$RUNNER_TEMP/DolphiniOS.xcarchive" \
+            -resultBundlePath "$RUNNER_TEMP/DolphiniOS.xcresult" \
             -derivedDataPath "$RUNNER_TEMP/build-Xcode" \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
@@ -36,6 +37,15 @@ jobs:
             DOL_BUILD_SOURCE="development" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
+
+      - name: Upload Xcode build diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xcode-build-diagnostics
+          path: ${{ runner.temp }}/DolphiniOS.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Package unsigned IPA
         run: |

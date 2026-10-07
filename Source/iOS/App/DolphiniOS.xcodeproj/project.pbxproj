@@ -1990,7 +1990,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$PROJECT_DIR/Project/Scripts/SetUpPython.sh\"\n";
+			shellScript = "/bin/bash \"$PROJECT_DIR/Project/Scripts/SetUpPython.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
