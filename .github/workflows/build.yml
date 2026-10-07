@@ -32,6 +32,8 @@ jobs:
             Externals/SFML/SFML \
             Externals/spirv_cross/SPIRV-Cross \
             Externals/tinygltf/tinygltf \
+            Externals/Vulkan-Headers \
+            Externals/VulkanMemoryAllocator \
             Externals/watcher/watcher \
             Externals/xxhash/xxHash \
             Externals/zlib-ng/zlib-ng \
