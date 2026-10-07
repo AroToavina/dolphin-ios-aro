@@ -442,8 +442,8 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
     Config::SetBase(Config::NETPLAY_USE_INDEX, _publicRoomSwitch.on);
     Config::SetBase(Config::NETPLAY_INDEX_NAME, FoundationToCppString(_roomNameField.text ?: @""));
     NSArray<NSString*>* regions = @[@"AF", @"EA", @"EU", @"NA", @"OC", @"SA", @"CN"];
-    const NSInteger region_index = std::clamp((NSInteger)_regionControl.selectedSegmentIndex, 0,
-                                               (NSInteger)regions.count - 1);
+    const NSInteger region_index = std::clamp((NSInteger)_regionControl.selectedSegmentIndex,
+                                               NSInteger{0}, (NSInteger)regions.count - 1);
     Config::SetBase(Config::NETPLAY_INDEX_REGION,
                     FoundationToCppString(regions[region_index]));
     Config::SetBase(Config::NETPLAY_INDEX_PASSWORD,
