@@ -39,7 +39,11 @@ enum
   DOLNetPlayEventError = 4,
   DOLNetPlayEventIndex = 5,
   DOLNetPlayEventStartGame = 6,
-  DOLNetPlayEventPowerButton = 7
+  DOLNetPlayEventPowerButton = 7,
+  DOLNetPlayEventConnectionLost = 8,
+  DOLNetPlayEventTraversalRetryableError = 9,
+  DOLNetPlayEventTraversalFatalError = 10,
+  DOLNetPlayEventTraversalConnected = 11
 };
 
 __attribute__((visibility("default"))) void* DOLNetPlayCreate(
@@ -74,6 +78,7 @@ __attribute__((visibility("default"))) bool DOLNetPlayBrowse(
     DOLNetPlaySessionCallback callback, void* context);
 __attribute__((visibility("default"))) bool DOLNetPlayDecryptSessionId(
     const char* server_id, const char* password, char* output, size_t output_size);
+__attribute__((visibility("default"))) bool DOLNetPlayRetryTraversal(void* session);
 
 #if defined(__cplusplus)
 }

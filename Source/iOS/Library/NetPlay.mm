@@ -70,12 +70,12 @@ public:
   void OnPadBufferChanged(u32) override {}
   void OnHostInputAuthorityChanged(bool) override {}
   void OnDesync(u32 frame, const std::string& player) override;
-  void OnConnectionLost() override { Emit(DOLNetPlayEventError, "Connection to the host was lost."); }
+  void OnConnectionLost() override { Emit(DOLNetPlayEventConnectionLost, ""); }
   void OnConnectionError(const std::string& error) override
   {
     Emit(DOLNetPlayEventError, error);
   }
-  void OnTraversalError(Common::TraversalClient::FailureReason) override {}
+  void OnTraversalError(Common::TraversalClient::FailureReason reason) override;
   void OnTraversalStateChanged(Common::TraversalClient::State state) override;
   void OnGameStartAborted() override { Emit(DOLNetPlayEventError, "Game start was aborted."); }
   void OnGolferChanged(bool, const std::string&) override {}
@@ -309,6 +309,9 @@ void IOSNetPlayUI::OnTraversalStateChanged(Common::TraversalClient::State state)
 {
   if (!Common::g_TraversalClient)
     return;
+  if (state == Common::TraversalClient::State::Failure)
+    return;
+
   std::string message;
   if (state == Common::TraversalClient::State::Connected)
   {
@@ -320,16 +323,43 @@ void IOSNetPlayUI::OnTraversalStateChanged(Common::TraversalClient::State state)
       ip[0] = '\0';
     message = "Room code: " + std::string(id.begin(), id.end()) + "\nExternal address: " + ip +
               ":" + std::to_string(address.port);
+    Emit(DOLNetPlayEventTraversalConnected, message);
+    return;
   }
   else if (state == Common::TraversalClient::State::Connecting)
   {
     message = "Connecting to the Dolphin traversal server…";
   }
-  else
-  {
-    message = "Traversal connection failed. Check your network and try again.";
-  }
   Emit(DOLNetPlayEventStatus, message);
+}
+
+void IOSNetPlayUI::OnTraversalError(Common::TraversalClient::FailureReason reason)
+{
+  int event = IsHosting() ? DOLNetPlayEventTraversalRetryableError :
+                            DOLNetPlayEventTraversalFatalError;
+  const char* message = IsHosting() ? "The traversal connection failed. Tap Retry to reconnect." :
+                                      "The traversal connection failed. Close NetPlay and try again.";
+  switch (reason)
+  {
+  case Common::TraversalClient::FailureReason::BadHost:
+    event = DOLNetPlayEventTraversalFatalError;
+    message = "Could not find the traversal server. Check the server address and network.";
+    break;
+  case Common::TraversalClient::FailureReason::VersionTooOld:
+    event = DOLNetPlayEventTraversalFatalError;
+    message = "This Dolphin version is too old for the traversal server.";
+    break;
+  case Common::TraversalClient::FailureReason::ServerForgotAboutUs:
+    message = "The traversal server lost this session. Tap Retry to reconnect.";
+    break;
+  case Common::TraversalClient::FailureReason::SocketSendError:
+    message = "Could not send data to the traversal server. Tap Retry to reconnect.";
+    break;
+  case Common::TraversalClient::FailureReason::ResendTimeout:
+    message = "The traversal server timed out. Tap Retry to reconnect.";
+    break;
+  }
+  Emit(event, message);
 }
 
 std::shared_ptr<const UICommon::GameFile>
@@ -590,5 +620,14 @@ DOLNetPlayDecryptSessionId(const char* server_id, const char* password, char* ou
     return false;
   std::copy(decrypted->begin(), decrypted->end(), output);
   output[decrypted->size()] = '\0';
+  return true;
+}
+
+extern "C" __attribute__((visibility("default"))) bool DOLNetPlayRetryTraversal(void* opaque)
+{
+  auto* session = static_cast<IOSNetPlaySession*>(opaque);
+  if (!session || !session->Server() || !Common::g_TraversalClient)
+    return false;
+  Common::g_TraversalClient->ReconnectToServer();
   return true;
 }

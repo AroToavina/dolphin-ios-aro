@@ -10,6 +10,7 @@
 
 #import "Core/Config/NetplaySettings.h"
 #import "Core/Config/MainSettings.h"
+#import "Core/Boot/Boot.h"
 #import "Core/Core.h"
 #import "Core/System.h"
 
@@ -27,7 +28,10 @@
 
 @interface NetPlayViewController ()
 - (void)handleNetPlayEvent:(int)event message:(NSString*)message;
-- (void)netPlayBootGame:(NSString*)path sessionData:(void*)sessionData;
+- (BOOL)netPlayBootGame:(NSString*)path sessionData:(BootSessionData*)sessionData;
+- (void)presentConnectionLostAlertIfNeeded;
+- (void)presentTraversalFatalErrorIfNeeded;
+- (void)retryTraversalTapped;
 - (void)joinListedSessionAtIndex:(NSUInteger)index password:(nullable NSString*)password;
 @end
 
@@ -77,8 +81,11 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
 {
   __weak NetPlayViewController* controller = (__bridge NetPlayViewController*)context;
   NSString* game_path = path ? [NSString stringWithUTF8String:path] : @"";
+  auto owned_session_data = std::make_shared<std::unique_ptr<BootSessionData>>(
+      static_cast<BootSessionData*>(boot_session_data));
   dispatch_async(dispatch_get_main_queue(), ^{
-    [controller netPlayBootGame:game_path sessionData:boot_session_data];
+    if ([controller netPlayBootGame:game_path sessionData:owned_session_data->get()])
+      owned_session_data->release();
   });
 }
 }  // namespace
@@ -93,6 +100,7 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   UITextField* _roomPasswordField;
   UILabel* _statusLabel;
   UILabel* _sessionStatusLabel;
+  UIButton* _retryTraversalButton;
   UIButton* _shareJoinInfoButton;
   UILabel* _playersLabel;
   UILabel* _gameLabel;
@@ -115,6 +123,10 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   std::vector<ListedSession> _listedSessions;
   void* _nativeSession;
   void* _callbackContext;
+  bool _connectionInProgress;
+  bool _closeRequested;
+  bool _connectionLostPending;
+  NSString* _pendingTraversalFatalError;
 }
 
 - (instancetype)initWithDelegate:(id<NetPlayViewControllerDelegate>)delegate
@@ -134,6 +146,13 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)viewDidAppear:(BOOL)animated
+{
+  [super viewDidAppear:animated];
+  [self presentConnectionLostAlertIfNeeded];
+  [self presentTraversalFatalErrorIfNeeded];
 }
 
 - (void)viewDidLoad
@@ -258,6 +277,13 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   _sessionStatusLabel.numberOfLines = 0;
   _sessionStatusLabel.textColor = UIColor.secondaryLabelColor;
   [_sessionStack addArrangedSubview:_sessionStatusLabel];
+
+  _retryTraversalButton = [UIButton buttonWithType:UIButtonTypeSystem];
+  [_retryTraversalButton setTitle:@"Retry traversal connection" forState:UIControlStateNormal];
+  [_retryTraversalButton addTarget:self action:@selector(retryTraversalTapped)
+                  forControlEvents:UIControlEventTouchUpInside];
+  _retryTraversalButton.hidden = true;
+  [_sessionStack addArrangedSubview:_retryTraversalButton];
 
   _shareJoinInfoButton = [UIButton buttonWithType:UIButtonTypeSystem];
   [_shareJoinInfoButton setTitle:@"Share join information" forState:UIControlStateNormal];
@@ -467,6 +493,7 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   Config::Save();
   const NSUInteger port_value = static_cast<NSUInteger>(port);
   void* session = _nativeSession;
+  _connectionInProgress = true;
 
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
     const bool connected = DOLNetPlayConnect(session, hosting, traversal, address.c_str(),
@@ -476,6 +503,12 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
     dispatch_async(dispatch_get_main_queue(), ^{
       if (session != self->_nativeSession)
         return;
+      self->_connectionInProgress = false;
+      if (self->_closeRequested)
+      {
+        [self closeNativeSession];
+        return;
+      }
       self->_connectButton.enabled = true;
       if (!connected)
       {
@@ -753,10 +786,21 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
 
 - (void)closeNativeSession
 {
+  if (_connectionInProgress)
+  {
+    // DOLNetPlayConnect is using this pointer on a worker thread. Defer its
+    // destruction until that call has returned to the main queue.
+    _closeRequested = true;
+    return;
+  }
+
   void* session = _nativeSession;
   void* context = _callbackContext;
   _nativeSession = nullptr;
   _callbackContext = nullptr;
+  _closeRequested = false;
+  _connectionLostPending = false;
+  _pendingTraversalFatalError = nil;
   if (s_active_netplay_controller == self)
     s_active_netplay_controller = nil;
   _sessionStack.hidden = true;
@@ -803,6 +847,27 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   case DOLNetPlayEventError:
     [self netPlayError:message];
     break;
+  case DOLNetPlayEventConnectionLost:
+    _connectionLostPending = true;
+    [self presentConnectionLostAlertIfNeeded];
+    break;
+  case DOLNetPlayEventTraversalRetryableError:
+    _statusLabel.text = message;
+    _sessionStatusLabel.text = message;
+    _retryTraversalButton.hidden = false;
+    break;
+  case DOLNetPlayEventTraversalFatalError:
+    _statusLabel.text = message;
+    _sessionStatusLabel.text = message;
+    _retryTraversalButton.hidden = true;
+    _pendingTraversalFatalError = message;
+    [self presentTraversalFatalErrorIfNeeded];
+    break;
+  case DOLNetPlayEventTraversalConnected:
+    _statusLabel.text = message;
+    _sessionStatusLabel.text = message;
+    _retryTraversalButton.hidden = true;
+    break;
   case DOLNetPlayEventStartGame:
     if (_nativeSession)
       DOLNetPlayStartClientGame(_nativeSession);
@@ -811,6 +876,76 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
     if (_nativeSession)
       DOLNetPlayTriggerPowerButton(_nativeSession);
     break;
+  }
+}
+
+- (void)presentConnectionLostAlertIfNeeded
+{
+  if (!_connectionLostPending || !self.isViewLoaded || !self.view.window ||
+      self.presentedViewController)
+  {
+    return;
+  }
+
+  _connectionLostPending = false;
+  UIAlertController* alert = [UIAlertController
+      alertControllerWithTitle:@"NetPlay connection lost"
+                       message:@"The connection to the host was lost. The NetPlay session will close."
+                preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:^(UIAlertAction*) {
+    if (Core::IsRunning(Core::System::GetInstance()))
+    {
+      self->_connectionLostPending = true;
+      [self closeSession];
+      return;
+    }
+    [self closeNativeSession];
+    [self dismissViewControllerAnimated:true completion:nil];
+  }]];
+  [self presentViewController:alert animated:true completion:nil];
+}
+
+- (void)presentTraversalFatalErrorIfNeeded
+{
+  if (!_pendingTraversalFatalError || !self.isViewLoaded || !self.view.window ||
+      self.presentedViewController)
+  {
+    return;
+  }
+
+  NSString* message = _pendingTraversalFatalError;
+  _pendingTraversalFatalError = nil;
+  UIAlertController* alert = [UIAlertController
+      alertControllerWithTitle:@"Traversal error"
+                       message:message
+                preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Close NetPlay"
+                                            style:UIAlertActionStyleDefault
+                                          handler:^(UIAlertAction*) {
+                                            if (Core::IsRunning(Core::System::GetInstance()))
+                                            {
+                                              self->_pendingTraversalFatalError = message;
+                                              [self closeSession];
+                                              return;
+                                            }
+                                            [self closeNativeSession];
+                                            [self dismissViewControllerAnimated:true
+                                                                     completion:nil];
+                                          }]];
+  [self presentViewController:alert animated:true completion:nil];
+}
+
+- (void)retryTraversalTapped
+{
+  if (!_nativeSession)
+    return;
+
+  _retryTraversalButton.hidden = true;
+  _sessionStatusLabel.text = @"Reconnecting to the traversal server…";
+  if (!DOLNetPlayRetryTraversal(_nativeSession))
+  {
+    _retryTraversalButton.hidden = false;
+    _sessionStatusLabel.text = @"Could not retry the traversal connection.";
   }
 }
 
@@ -876,8 +1011,11 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   [self presentViewController:picker animated:true completion:nil];
 }
 
-- (void)netPlayBootGame:(NSString*)path sessionData:(void*)sessionData
+- (BOOL)netPlayBootGame:(NSString*)path sessionData:(BootSessionData*)sessionData
 {
+  if (_closeRequested || !_nativeSession)
+    return NO;
+
   EmulationBootParameter* parameter = [[EmulationBootParameter alloc] init];
   parameter.bootType = EmulationBootTypeFile;
   parameter.path = path;
@@ -893,6 +1031,7 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
     }
   }
   [self.delegate netPlayViewController:self didRequestGameLaunch:parameter];
+  return YES;
 }
 
 - (void)netPlayError:(NSString*)message
