@@ -55,6 +55,7 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             DOL_PBID_ORGANIZATION_IDENTIFIER="me.oatmealdome" \
+            DOL_APP_ICON_ASSET_NAME="AppIcon" \
             DOL_BUILD_SOURCE="development" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
