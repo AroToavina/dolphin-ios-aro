@@ -18,6 +18,18 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Fetch external dependencies
+        run: |
+          git config -f .gitmodules --get-regexp '^submodule\..*\.path$' | while read -r key path; do
+            name="${key#submodule.}"
+            name="${name%.path}"
+            url="$(git config -f .gitmodules "submodule.${name}.url")"
+            if [ ! -d "$path/.git" ]; then
+              mkdir -p "$(dirname "$path")"
+              git clone --depth 1 "$url" "$path"
+            fi
+          done
+
       - name: Install build tools
         run: |
           brew install cmake ninja bartycrouch
