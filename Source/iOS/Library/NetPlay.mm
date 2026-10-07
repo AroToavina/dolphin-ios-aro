@@ -26,6 +26,7 @@
 #include "Core/NetPlayClient.h"
 #include "Core/NetPlayCommon.h"
 #include "Core/NetPlayServer.h"
+#include "Core/System.h"
 #include "UICommon/GameFile.h"
 #include "UICommon/GameFileCache.h"
 #include "UICommon/NetPlayIndex.h"
