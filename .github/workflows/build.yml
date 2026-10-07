@@ -1,55 +1,55 @@
-name: Build
+name: Build unsigned iOS IPA
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [main]
   pull_request:
-    branches: [ master ]
+    branches: [main]
 
 jobs:
-  build:
-    # runs-on: macos-12
-    runs-on: [self-hosted, macOS]
+  build-ipa:
+    runs-on: macos-15
+    timeout-minutes: 90
 
-    env:
-      XCODE_COMMON_BUILD_ARGS: -project Source/iOS/App/DolphiniOS.xcodeproj -derivedDataPath "${{ github.workspace }}/build-Xcode" -sdk iphoneos -destination generic/platform=iOS DOL_PBID_ORGANIZATION_IDENTIFIER="me.oatmealdome" DOL_BUILD_SOURCE="development" CODE_SIGNING_ALLOWED="NO" CODE_SIGNING_REQUIRED="NO"
-    
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          submodules: recursive
 
-      # - name: Set Xcode Version
-      #   run: sudo xcode-select -s /Applications/Xcode_14.2.app
+      - name: Install build tools
+        run: |
+          brew install cmake ninja bartycrouch
 
-      # - name: Install Build Utilities
-      #   run: |
-      #     brew install cmake ninja bartycrouch
-      #     /usr/bin/python3 -m pip install polib
+      - name: Build non-jailbroken iOS app
+        run: |
+          xcodebuild archive \
+            -project Source/iOS/App/DolphiniOS.xcodeproj \
+            -scheme "DiOS (NJB)" \
+            -configuration "Release (Non-Jailbroken)" \
+            -archivePath "$RUNNER_TEMP/DolphiniOS.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/build-Xcode" \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            DOL_PBID_ORGANIZATION_IDENTIFIER="me.oatmealdome" \
+            DOL_BUILD_SOURCE="development" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
-      - name: Set Schema
+      - name: Package unsigned IPA
         run: |
-          echo "XCODE_CONFIGURATION_NJB=Release (Non-Jailbroken)" >> $GITHUB_ENV
-          echo "XCODE_CONFIGURATION_JB=Release (Jailbroken)" >> $GITHUB_ENV
-          echo "XCODE_CONFIGURATION_TS=Release (TrollStore)" >> $GITHUB_ENV
-          echo "DEB_CONTROL_NAME=control-normal" >> $GITHUB_ENV
-      
-      - name: Build Application
-        run: |
-          rm -rf "${{ github.workspace }}/archives" || true
-          mkdir "${{ github.workspace }}/archives"
-          xcodebuild archive -archivePath "${{ github.workspace }}/archives/NonJailbroken.xcarchive" -configuration "${{ env.XCODE_CONFIGURATION_NJB }}" -scheme "DiOS (NJB)" ${{ env.XCODE_COMMON_BUILD_ARGS }}
-          xcodebuild archive -archivePath "${{ github.workspace }}/archives/Jailbroken.xcarchive" -configuration "${{ env.XCODE_CONFIGURATION_JB }}" -scheme "DiOS (JB)" ${{ env.XCODE_COMMON_BUILD_ARGS }}
-          xcodebuild archive -archivePath "${{ github.workspace }}/archives/TrollStore.xcarchive" -configuration "${{ env.XCODE_CONFIGURATION_TS }}" -scheme "DiOS (JB)" ${{ env.XCODE_COMMON_BUILD_ARGS }}
-      
-      - name: Build IPA Files
-        run: |
-          mkdir "${{ github.workspace }}/products"
-          "${{ github.workspace }}/Source/iOS/App/Project/Scripts/CreateIpa.sh" "${{ github.workspace }}/archives/NonJailbroken.xcarchive/Products/Applications/DolphiniOS.app" "OatmealDome Software" "${{ github.workspace }}/Source/iOS/App/Project/Entitlements/Public.entitlements" "${{ github.workspace }}/products/Non-Jailbroken.ipa"
-          "${{ github.workspace }}/Source/iOS/App/Project/Scripts/CreateIpa.sh" "${{ github.workspace }}/archives/TrollStore.xcarchive/Products/Applications/DolphiniOS.app" "OatmealDome Software" "${{ github.workspace }}/Source/iOS/App/Project/Entitlements/Private.entitlements" "${{ github.workspace }}/products/TrollStore.tipa"
-      
-      - name: Build DEB File
-        run: |
-          "${{ github.workspace }}/Source/iOS/App/Project/Scripts/CreateDeb.sh" "${{ github.workspace }}/archives/Jailbroken.xcarchive/Products/Applications/DolphiniOS.app" "OatmealDome Software" "${{ github.workspace }}/Source/iOS/App/Project/Entitlements/Private.entitlements" "${{ github.workspace }}/Source/iOS/App/Project/Package/Deb/${{ env.DEB_CONTROL_NAME }}.in" "${{ github.workspace }}/Source/iOS/App/Project/Package/Deb/postinst.sh" "${{ github.workspace }}/Source/iOS/App/Project/Package/Deb/postrm.sh" "Applications" "${{ github.workspace }}/products/Jailbroken-Rootful.deb"
-          "${{ github.workspace }}/Source/iOS/App/Project/Scripts/CreateDeb.sh" "${{ github.workspace }}/archives/Jailbroken.xcarchive/Products/Applications/DolphiniOS.app" "OatmealDome Software" "${{ github.workspace }}/Source/iOS/App/Project/Entitlements/Private.entitlements" "${{ github.workspace }}/Source/iOS/App/Project/Package/Deb/${{ env.DEB_CONTROL_NAME }}-rootless.in" "${{ github.workspace }}/Source/iOS/App/Project/Package/Deb/postinst.sh" "${{ github.workspace }}/Source/iOS/App/Project/Package/Deb/postrm.sh" "var/jb/Applications" "${{ github.workspace }}/products/Jailbroken-Rootless.deb"
-      
+          APP_PATH="$RUNNER_TEMP/DolphiniOS.xcarchive/Products/Applications/DolphiniOS.app"
+          test -d "$APP_PATH"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          ditto "$APP_PATH" "$RUNNER_TEMP/ipa/Payload/DolphiniOS.app"
+          cd "$RUNNER_TEMP/ipa"
+          zip -qry "$GITHUB_WORKSPACE/DolphiniOS-unsigned.ipa" Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DolphiniOS-unsigned-IPA
+          path: DolphiniOS-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
