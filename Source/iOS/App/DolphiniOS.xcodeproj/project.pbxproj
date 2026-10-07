@@ -1897,7 +1897,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$PROJECT_DIR/Project/Scripts/BuildCore.sh\"\n";
+			shellScript = "/bin/bash \"$PROJECT_DIR/Project/Scripts/BuildCore.sh\"\n";
 		};
 		B97E4B622966227B00B3EE9C /* Upload dSYM */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -1935,7 +1935,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$PROJECT_DIR/Project/Scripts/UpdateStoryboardStrings.sh\"\n";
+			shellScript = "/bin/bash \"$PROJECT_DIR/Project/Scripts/UpdateStoryboardStrings.sh\"\n";
 		};
 		B99137A428825CFA00588446 /* Update Core Strings */ = {
 			isa = PBXShellScriptBuildPhase;
