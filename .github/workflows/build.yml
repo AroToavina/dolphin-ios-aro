@@ -15,8 +15,27 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      - name: Checkout iOS build dependencies
+        run: |
+          git submodule update --init --depth=1 --jobs=4 -- \
+            Externals/cubeb/cubeb \
+            Externals/curl/curl \
+            Externals/enet/enet \
+            Externals/fmt/fmt \
+            Externals/implot/implot \
+            Externals/libspng/libspng \
+            Externals/lz4/lz4 \
+            Externals/miniupnpc/miniupnp \
+            Externals/minizip-ng/minizip-ng \
+            Externals/rcheevos/rcheevos \
+            Externals/SFML/SFML \
+            Externals/spirv_cross/SPIRV-Cross \
+            Externals/tinygltf/tinygltf \
+            Externals/watcher/watcher \
+            Externals/xxhash/xxHash \
+            Externals/zlib-ng/zlib-ng \
+            Externals/zstd/zstd
 
       - name: Install build tools
         run: |
