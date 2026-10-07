@@ -547,8 +547,8 @@
 		B9DC5FB82884CB7C004BD94A /* GraphicsChoiceCell.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GraphicsChoiceCell.mm; sourceTree = "<group>"; };
 		B9EC1A41295FFFD30013EBE4 /* SoftwareListiOSViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SoftwareListiOSViewController.h; sourceTree = "<group>"; };
 		B9EC1A42295FFFD30013EBE4 /* SoftwareListiOSViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SoftwareListiOSViewController.mm; sourceTree = "<group>"; };
-		D01A00000000000000000002 /* NetPlayViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetPlayViewController.h; sourceTree = "<group>"; };
-		D01A00000000000000000003 /* NetPlayViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = NetPlayViewController.mm; sourceTree = "<group>"; };
+		D01A00000000000000000002 /* NetPlayViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Common/UI/SoftwareList/NetPlayViewController.h; sourceTree = SOURCE_ROOT; };
+		D01A00000000000000000003 /* NetPlayViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = Common/UI/SoftwareList/NetPlayViewController.mm; sourceTree = SOURCE_ROOT; };
 		B9EC28362D21D429000FAE09 /* ControllersTouchscreenViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ControllersTouchscreenViewController.h; sourceTree = "<group>"; };
 		B9EC28372D21D429000FAE09 /* ControllersTouchscreenViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ControllersTouchscreenViewController.mm; sourceTree = "<group>"; };
 		B9EC28392D21DA56000FAE09 /* TCWiiTouchIRMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TCWiiTouchIRMode.swift; sourceTree = "<group>"; };
