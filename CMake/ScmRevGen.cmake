@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 # for revision info
-if(GIT_FOUND)
+if(NOT DOLPHIN_WC_REVISION AND GIT_FOUND)
   # defines DOLPHIN_WC_REVISION
   execute_process(WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
       OUTPUT_VARIABLE DOLPHIN_WC_REVISION
@@ -33,8 +33,17 @@ endif()
 string(TIMESTAMP DOLPHIN_WC_BUILD_DATE "%Y-%m-%d" UTC)
 
 # version number
-set(DOLPHIN_VERSION_MAJOR "2509")
+set(DOLPHIN_VERSION_MAJOR "2609")
 set(DOLPHIN_VERSION_MINOR "0")
+
+# For iOS NetPlay compatibility with upstream Dolphin 2609, pin the revision string
+if(IOS OR NOT DOLPHIN_WC_REVISION)
+  set(DOLPHIN_WC_REVISION "f84df02055ab9610feec48e65648cac5a3c098fa")
+  set(DOLPHIN_WC_DESCRIBE "2609")
+  set(DOLPHIN_WC_BRANCH "master")
+  set(DOLPHIN_WC_COMMITS_AHEAD_MASTER 0)
+endif()
+
 set(DOLPHIN_VERSION_PATCH ${DOLPHIN_WC_REVISION})
 
 # If Dolphin is not built from a Git repository, default the version info to

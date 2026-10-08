@@ -5,6 +5,10 @@
 
 #include <string>
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 #include "Common/scmrev.h"
 
 namespace Common
@@ -18,6 +22,12 @@ namespace Common
 #else
 #define BUILD_TYPE_STR ""
 #endif
+
+const std::string& GetEmulatorName()
+{
+  static const std::string emulator_name = EMULATOR_NAME;
+  return emulator_name;
+}
 
 const std::string& GetScmRevStr()
 {
@@ -74,11 +84,19 @@ const std::string& GetScmUpdateTrackStr()
 const std::string& GetNetplayDolphinVer()
 {
 #ifdef _WIN32
-  static const std::string netplay_dolphin_ver = SCM_DESC_STR " Win";
+  static const std::string netplay_dolphin_ver = SCM_DESC_STR " Windows";
 #elif __APPLE__
-  static const std::string netplay_dolphin_ver = SCM_DESC_STR " Mac";
+#if TARGET_OS_IPHONE
+  static const std::string netplay_dolphin_ver = SCM_DESC_STR " iOS";
 #else
-  static const std::string netplay_dolphin_ver = SCM_DESC_STR " Lin";
+  static const std::string netplay_dolphin_ver = SCM_DESC_STR " macOS";
+#endif
+#elif ANDROID
+  static const std::string netplay_dolphin_ver = SCM_DESC_STR " Android";
+#elif __linux__
+  static const std::string netplay_dolphin_ver = SCM_DESC_STR " Linux";
+#else
+  static const std::string netplay_dolphin_ver = SCM_DESC_STR;
 #endif
   return netplay_dolphin_ver;
 }

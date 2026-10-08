@@ -43,3 +43,6 @@ CMakeLists.txt.user
 /.vscode/
 # Ignore flatpak-builder's cache dir
 .flatpak-builder
+
+# Local AI agent instructions may contain workstation-specific credentials.
+/AGENTS.md

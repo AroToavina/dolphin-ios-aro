@@ -197,6 +197,12 @@ static void ClearPeerPlayerId(ENetPeer* peer)
   }
 }
 
+template <typename T>
+static bool IsValidPadIndex(const T& map_array, PadIndex index)
+{
+  return index >= 0 && static_cast<size_t>(index) < map_array.size();
+}
+
 void NetPlayServer::SetupIndex()
 {
   if (!Config::Get(Config::NETPLAY_USE_INDEX) || Config::Get(Config::NETPLAY_INDEX_NAME).empty() ||
@@ -438,11 +444,31 @@ static void SendSyncIdentifier(sf::Packet& spac, const SyncIdentifier& sync_iden
 }
 
 // called from ---NETPLAY--- thread
+static bool IsCompatibleNetPlayVersion(const std::string& version)
+{
+  if (version == Common::GetScmRevGitStr())
+    return true;
+
+  // Upstream official Dolphin 2609 release commit
+  if (version == "f84df02055ab9610feec48e65648cac5a3c098fa")
+    return true;
+
+  // Upstream official Dolphin 2609a hotfix release commit
+  if (version == "409881c34357d0f105fd473167d15ab0bd9c1628")
+    return true;
+
+  // Generic 2609 release tag or describe prefixes
+  if (version == "2609" || version == "2609a" || version.rfind("2609", 0) == 0)
+    return true;
+
+  return false;
+}
+
 ConnectionError NetPlayServer::OnConnect(ENetPeer* incoming_connection, sf::Packet& received_packet)
 {
   std::string netplay_version;
   received_packet >> netplay_version;
-  if (netplay_version != Common::GetScmRevGitStr())
+  if (!IsCompatibleNetPlayVersion(netplay_version))
     return ConnectionError::VersionMismatch;
 
   if (m_is_running || m_start_pending)
@@ -527,6 +553,21 @@ unsigned int NetPlayServer::OnDisconnect(const Client& player)
     for (PlayerId& mapping : m_pad_map)
     {
       if (mapping == pid && pid != 1)
+      {
+        std::lock_guard lkg(m_crit.game);
+        m_is_running = false;
+
+        sf::Packet spac;
+        spac << MessageID::DisableGame;
+        // this thread doesn't need players lock
+        SendToClients(spac);
+        break;
+      }
+    }
+
+    for (PlayerId& mapping : m_wiimote_map)
+    {
+      if (m_is_running && mapping == pid && pid != 1)
       {
         std::lock_guard lkg(m_crit.game);
         m_is_running = false;
@@ -1425,6 +1466,7 @@ bool NetPlayServer::SetupNetSettings()
   settings.divide_by_zero_exceptions = Config::Get(Config::MAIN_DIVIDE_BY_ZERO_EXCEPTIONS);
   settings.fprf = Config::Get(Config::MAIN_FPRF);
   settings.accurate_nans = Config::Get(Config::MAIN_ACCURATE_NANS);
+  settings.accurate_fmadds = Config::Get(Config::MAIN_ACCURATE_FMADDS);
   settings.disable_icache = Config::Get(Config::MAIN_DISABLE_ICACHE);
   settings.sync_on_skip_idle = Config::Get(Config::MAIN_SYNC_ON_SKIP_IDLE);
   settings.sync_gpu = Config::Get(Config::MAIN_SYNC_GPU);
@@ -1956,7 +1998,7 @@ bool NetPlayServer::SyncSaveData(const SaveSyncInfo& sync_info)
         for (u8 byte : header->md5)
           pac << byte;
         pac << header->unk2;
-        for (size_t i = 0; i < header->banner_size; i++)
+        for (size_t i = 0; i < std::min<size_t>(header->banner_size, sizeof(header->banner)); i++)
           pac << header->banner[i];
 
         // BkHeader
@@ -2252,6 +2294,15 @@ bool NetPlayServer::PlayerHasControllerMapped(const PlayerId pid) const
 void NetPlayServer::AssignNewUserAPad(const Client& player)
 {
   for (PlayerId& mapping : m_pad_map)
+  {
+    // 0 means unmapped
+    if (mapping == 0)
+    {
+      mapping = player.pid;
+      break;
+    }
+  }
+  for (PlayerId& mapping : m_wiimote_map)
   {
     // 0 means unmapped
     if (mapping == 0)
