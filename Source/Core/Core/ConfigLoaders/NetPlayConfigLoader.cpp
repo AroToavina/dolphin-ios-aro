@@ -22,6 +22,7 @@
 #include "Core/Config/SessionSettings.h"
 #include "Core/HW/EXI/EXI.h"
 #include "Core/NetPlayProto.h"
+#include "Core/PowerPC/PowerPC.h"
 
 namespace ConfigLoaders
 {
