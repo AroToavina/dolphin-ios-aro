@@ -165,6 +165,11 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
                            target:self
                            action:@selector(closeSession)];
 
+  UITapGestureRecognizer* dismissTap =
+      [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(dismissKeyboard)];
+  dismissTap.cancelsTouchesInView = NO;
+  [self.view addGestureRecognizer:dismissTap];
+
   UIScrollView* scroll = [[UIScrollView alloc] init];
   scroll.translatesAutoresizingMaskIntoConstraints = false;
   [self.view addSubview:scroll];
@@ -211,6 +216,7 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   _addressField = [self textFieldWithPlaceholder:@"IP address or room code"];
   [_setupStack addArrangedSubview:_addressField];
   _portField = [self textFieldWithPlaceholder:@"Port"];
+  _portField.keyboardType = UIKeyboardTypeNumberPad;
   [_setupStack addArrangedSubview:_portField];
 
   UIStackView* upnpRow = [[UIStackView alloc] init];
@@ -358,6 +364,7 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   chatRow.axis = UILayoutConstraintAxisHorizontal;
   chatRow.spacing = 8;
   _chatField = [self textFieldWithPlaceholder:@"Message"];
+  _chatField.returnKeyType = UIReturnKeySend;
   [chatRow addArrangedSubview:_chatField];
   UIButton* send = [UIButton buttonWithType:UIButtonTypeSystem];
   [send setTitle:@"Send" forState:UIControlStateNormal];
@@ -368,6 +375,28 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   [self updatePlaceholders];
 }
 
+- (UIToolbar*)keyboardDoneToolbar
+{
+  UIToolbar* toolbar =
+      [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, UIScreen.mainScreen.bounds.size.width, 44)];
+  UIBarButtonItem* flex = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+                           target:nil
+                           action:nil];
+  UIBarButtonItem* done = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(dismissKeyboard)];
+  toolbar.items = @[flex, done];
+  [toolbar sizeToFit];
+  return toolbar;
+}
+
+- (void)dismissKeyboard
+{
+  [self.view endEditing:YES];
+}
+
 - (UITextField*)textFieldWithPlaceholder:(NSString*)placeholder
 {
   UITextField* field = [[UITextField alloc] init];
@@ -376,6 +405,9 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   field.autocorrectionType = UITextAutocorrectionTypeNo;
   field.autocapitalizationType = UITextAutocapitalizationTypeNone;
   field.clearButtonMode = UITextFieldViewModeWhileEditing;
+  field.delegate = self;
+  field.returnKeyType = UIReturnKeyDone;
+  field.inputAccessoryView = [self keyboardDoneToolbar];
   return field;
 }
 
@@ -771,6 +803,19 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   const std::string message = FoundationToCppString(text);
   DOLNetPlaySendChat(_nativeSession, message.c_str());
   _chatField.text = @"";
+}
+
+- (BOOL)textFieldShouldReturn:(UITextField*)textField
+{
+  if (textField == _chatField)
+  {
+    [self sendChat];
+  }
+  else
+  {
+    [textField resignFirstResponder];
+  }
+  return YES;
 }
 
 - (void)closeSession

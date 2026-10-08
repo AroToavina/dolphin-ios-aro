@@ -2180,6 +2180,9 @@ bool NetPlayClient::WiimoteUpdate(const std::span<WiimoteDataBatchEntry>& entrie
 bool NetPlayClient::PollLocalPad(const int local_pad, sf::Packet& packet)
 {
   const int ingame_pad = LocalPadToInGamePad(local_pad);
+  if (ingame_pad < 0 || ingame_pad >= 4)
+    return false;
+
   bool data_added = false;
   GCPadStatus pad_status;
 
@@ -2235,6 +2238,9 @@ bool NetPlayClient::AddLocalWiimoteToBuffer(const int local_wiimote,
                                             sf::Packet& packet)
 {
   const int ingame_pad = LocalWiimoteToInGameWiimote(local_wiimote);
+  if (ingame_pad < 0 || ingame_pad >= 4)
+    return false;
+
   bool data_added = false;
 
   // adjust the buffer either up or down

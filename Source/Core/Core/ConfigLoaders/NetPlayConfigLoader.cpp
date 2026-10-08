@@ -7,6 +7,10 @@
 
 #include <fmt/format.h>
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 #include "Common/CommonPaths.h"
 #include "Common/Config/Config.h"
 #include "Common/FileUtil.h"
@@ -29,10 +33,23 @@ public:
   {
   }
 
-  void Load(Config::Layer* layer) override
-  {
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    // Dual Core causes threading conflicts with Metal/UIKit and JIT page protection on iOS.
+    // Single Core is stable and deterministic for NetPlay across peers.
+    layer->Set(Config::MAIN_CPU_THREAD, false);
+#else
     layer->Set(Config::MAIN_CPU_THREAD, m_settings.cpu_thread);
-    layer->Set(Config::MAIN_CPU_CORE, m_settings.cpu_core);
+#endif
+
+    PowerPC::CPUCore cpu_core = m_settings.cpu_core;
+#if defined(_M_ARM_64)
+    if (cpu_core == PowerPC::CPUCore::JIT64)
+      cpu_core = PowerPC::CPUCore::JITARM64;
+#elif defined(_M_X86_64)
+    if (cpu_core == PowerPC::CPUCore::JITARM64)
+      cpu_core = PowerPC::CPUCore::JIT64;
+#endif
+    layer->Set(Config::MAIN_CPU_CORE, cpu_core);
     layer->Set(Config::MAIN_ENABLE_CHEATS, m_settings.enable_cheats);
 #ifdef USE_RETRO_ACHIEVEMENTS
     layer->Set(Config::RA_HARDCORE_ENABLED, m_settings.enable_hardcore);
@@ -53,7 +70,11 @@ public:
     layer->Set(Config::MAIN_MEM2_SIZE, m_settings.mem2_size);
     layer->Set(Config::MAIN_FALLBACK_REGION, m_settings.fallback_region);
     layer->Set(Config::MAIN_ALLOW_SD_WRITES, m_settings.allow_sd_writes);
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    layer->Set(Config::MAIN_DSP_JIT, false);
+#else
     layer->Set(Config::MAIN_DSP_JIT, m_settings.dsp_enable_jit);
+#endif
 
     for (size_t i = 0; i < Config::SYSCONF_SETTINGS.size(); ++i)
     {
@@ -91,7 +112,11 @@ public:
     layer->Set(Config::MAIN_JIT_FOLLOW_BRANCH, m_settings.jit_follow_branch);
     layer->Set(Config::MAIN_FAST_DISC_SPEED, m_settings.fast_disc_speed);
     layer->Set(Config::MAIN_MMU, m_settings.mmu);
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    layer->Set(Config::MAIN_FASTMEM, m_settings.fastmem && Config::GetBase(Config::MAIN_FASTMEM));
+#else
     layer->Set(Config::MAIN_FASTMEM, m_settings.fastmem);
+#endif
     layer->Set(Config::MAIN_SKIP_IPL, m_settings.skip_ipl);
     layer->Set(Config::SESSION_LOAD_IPL_DUMP, m_settings.load_ipl_dump);
 
@@ -120,7 +145,13 @@ public:
                  m_settings.arbitrary_mipmap_detection);
       layer->Set(Config::GFX_ENHANCE_ARBITRARY_MIPMAP_DETECTION_THRESHOLD,
                  m_settings.arbitrary_mipmap_detection_threshold);
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+      layer->Set(Config::GFX_ENABLE_GPU_TEXTURE_DECODING,
+                 m_settings.enable_gpu_texture_decoding &&
+                     Config::GetBase(Config::GFX_ENABLE_GPU_TEXTURE_DECODING));
+#else
       layer->Set(Config::GFX_ENABLE_GPU_TEXTURE_DECODING, m_settings.enable_gpu_texture_decoding);
+#endif
 
       // Disable AA as it isn't deterministic across GPUs
       layer->Set(Config::GFX_MSAA, 1);

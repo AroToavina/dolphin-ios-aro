@@ -12,7 +12,7 @@
 - (void)netPlayViewControllerDidRequestSessionScreen:(NetPlayViewController*)controller;
 @end
 
-@interface NetPlayViewController : UIViewController
+@interface NetPlayViewController : UIViewController <UITextFieldDelegate>
 
 @property (nonatomic, weak) id<NetPlayViewControllerDelegate> delegate;
 
