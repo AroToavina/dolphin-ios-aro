@@ -33,6 +33,8 @@ public:
   {
   }
 
+  void Load(Config::Layer* layer) override
+  {
 #if defined(__APPLE__) && TARGET_OS_IPHONE
     // Dual Core causes threading conflicts with Metal/UIKit and JIT page protection on iOS.
     // Single Core is stable and deterministic for NetPlay across peers.
