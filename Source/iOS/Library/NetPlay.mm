@@ -133,6 +133,18 @@ public:
       m_callbacks.on_event(m_callbacks.context, event, message.c_str());
   }
 
+  bool HasSelectedGame() const { return !m_current_game.game_id.empty(); }
+  bool IsSelectedGameAvailable() const
+  {
+    return HasSelectedGame() && (FindGameFile(m_current_game) != nullptr);
+  }
+  std::string GetSelectedGameTitle()
+  {
+    if (const auto game = FindGameFile(m_current_game))
+      return game->GetName(UICommon::GameFile::Variant::LongAndPossiblyCustom);
+    return {};
+  }
+
 private:
   IOSNetPlaySession* m_session;
   DOLNetPlayCallbacks m_callbacks;
@@ -148,6 +160,13 @@ private:
 class IOSNetPlaySession
 {
 public:
+  IOSNetPlaySession(std::vector<std::shared_ptr<const UICommon::GameFile>> games,
+                    DOLNetPlayCallbacks callbacks)
+      : m_games(std::move(games))
+  {
+    m_ui = std::make_unique<IOSNetPlayUI>(this, callbacks, m_games);
+  }
+
   IOSNetPlaySession(std::vector<std::string> paths, DOLNetPlayCallbacks callbacks)
   {
     for (const auto& path : paths)
@@ -226,6 +245,27 @@ public:
     if (comparison)
       *comparison = best;
     return result;
+  }
+
+  bool HasGameSelected() const
+  {
+    if (m_server && !m_server->GetSelectedGameName().empty())
+      return true;
+    return m_ui && m_ui->HasSelectedGame();
+  }
+
+  bool IsSelectedGameAvailable() const
+  {
+    if (m_server && !m_server->GetSelectedGameName().empty())
+      return FindGame(m_server->GetSelectedGameIdentifier()) != nullptr;
+    return m_ui && m_ui->IsSelectedGameAvailable();
+  }
+
+  std::string GetSelectedGameTitle() const
+  {
+    if (m_server && !m_server->GetSelectedGameName().empty())
+      return m_server->GetSelectedGameName();
+    return m_ui ? m_ui->GetSelectedGameTitle() : "";
   }
 
 private:
@@ -396,6 +436,27 @@ DOLNetPlayCreate(const char* const* game_paths, size_t game_count,
   return new IOSNetPlaySession(std::move(paths), *callbacks);
 }
 
+extern "C" __attribute__((visibility("default"))) void*
+DOLNetPlayCreateWithGames(const DOLGameFileHandle* game_file_ptrs, size_t game_count,
+                         const DOLNetPlayCallbacks* callbacks)
+{
+  if (!callbacks)
+    return nullptr;
+  std::vector<std::shared_ptr<const UICommon::GameFile>> games;
+  games.reserve(game_count);
+  for (size_t i = 0; i < game_count; ++i)
+  {
+    if (game_file_ptrs && game_file_ptrs[i])
+    {
+      const auto* shared_ptr_ref =
+          static_cast<const std::shared_ptr<const UICommon::GameFile>*>(game_file_ptrs[i]);
+      if (*shared_ptr_ref)
+        games.push_back(*shared_ptr_ref);
+    }
+  }
+  return new IOSNetPlaySession(std::move(games), *callbacks);
+}
+
 extern "C" __attribute__((visibility("default"))) bool
 DOLNetPlayConnect(void* opaque, bool host, bool traversal, const char* address_or_code,
                   uint16_t port, const char* nickname, const char* traversal_server,
@@ -476,10 +537,44 @@ DOLNetPlaySetGame(void* opaque, const char* path)
 }
 
 extern "C" __attribute__((visibility("default"))) bool
+DOLNetPlayHasGameSelected(void* opaque)
+{
+  auto* session = static_cast<IOSNetPlaySession*>(opaque);
+  return session && session->HasGameSelected();
+}
+
+extern "C" __attribute__((visibility("default"))) bool
+DOLNetPlayIsSelectedGameAvailable(void* opaque)
+{
+  auto* session = static_cast<IOSNetPlaySession*>(opaque);
+  return session && session->IsSelectedGameAvailable();
+}
+
+extern "C" __attribute__((visibility("default"))) bool
+DOLNetPlayGetSelectedGameTitle(void* opaque, char* output, size_t output_size)
+{
+  auto* session = static_cast<IOSNetPlaySession*>(opaque);
+  if (!session || !output || output_size == 0)
+    return false;
+  const std::string title = session->GetSelectedGameTitle();
+  if (title.empty() || title.size() >= output_size)
+    return false;
+  std::copy(title.begin(), title.end(), output);
+  output[title.size()] = '\0';
+  return true;
+}
+
+extern "C" __attribute__((visibility("default"))) bool
 DOLNetPlayDoAllPlayersHaveGame(void* opaque)
 {
   auto* session = static_cast<IOSNetPlaySession*>(opaque);
-  return !session || !session->Client() || session->Client()->DoAllPlayersHaveGame();
+  if (!session || !session->Client())
+    return false;
+  if (!session->HasGameSelected())
+    return false;
+  if (session->Client()->GetPlayers().empty())
+    return false;
+  return session->Client()->DoAllPlayersHaveGame();
 }
 
 extern "C" __attribute__((visibility("default"))) void DOLNetPlayStartGame(void* opaque)

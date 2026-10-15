@@ -178,6 +178,8 @@ bool DecompressPacketIntoFile(sf::Packet& packet, const std::string& file_path)
   if (file_size == 0)
     return true;
 
+  File::CreateFullPath(file_path);
+
   File::IOFile file(file_path, "wb");
   if (!file)
   {

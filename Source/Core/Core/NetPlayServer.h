@@ -76,6 +76,9 @@ public:
   std::unordered_set<std::string> GetInterfaceSet() const;
   std::string GetInterfaceHost(const std::string& inter) const;
 
+  const SyncIdentifier& GetSelectedGameIdentifier() const { return m_selected_game_identifier; }
+  const std::string& GetSelectedGameName() const { return m_selected_game_name; }
+
   bool is_connected = false;
 
 private:

@@ -1544,6 +1544,13 @@ bool NetPlayServer::RequestStartGame()
 {
   INFO_LOG_FMT(NETPLAY, "Start Game requested.");
 
+  if (m_selected_game_identifier.game_id.empty() || !m_dialog->FindGameFile(m_selected_game_identifier))
+  {
+    PanicAlertFmtT("No valid game selected in NetPlay session!");
+    m_start_pending = false;
+    return false;
+  }
+
   if (!SetupNetSettings())
     return false;
 
@@ -1625,8 +1632,9 @@ bool NetPlayServer::StartGame()
 
   const u64 initial_rtc = GetInitialNetPlayRTC();
 
-  const std::string region = Config::GetDirectoryForRegion(
-      Config::ToGameCubeRegion(m_dialog->FindGameFile(m_selected_game_identifier)->GetRegion()));
+  const auto game_file = m_dialog->FindGameFile(m_selected_game_identifier);
+  const DiscIO::Region file_region = game_file ? game_file->GetRegion() : DiscIO::Region::Unknown;
+  const std::string region = Config::GetDirectoryForRegion(Config::ToGameCubeRegion(file_region));
 
   // load host's GC SRAM
   SConfig::GetInstance().m_strSRAM = File::GetUserPath(F_GCSRAM_IDX);

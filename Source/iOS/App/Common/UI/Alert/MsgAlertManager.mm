@@ -60,6 +60,26 @@ static bool MsgAlert(const char* caption, const char* text, bool question, Commo
     return false;
   }
   
+  if ([NSThread isMainThread] && !question) {
+    UIWindow* window = [[UIWindow alloc] initWithWindowScene:mainScene];
+    window.frame = [UIScreen mainScreen].bounds;
+    window.rootViewController = [[UIViewController alloc] init];
+    UIWindow* topWindow = mainScene.windows.lastObject;
+    window.windowLevel = topWindow ? (topWindow.windowLevel + 1) : UIWindowLevelAlert;
+
+    UIAlertController* alert = [UIAlertController alertControllerWithTitle:foundationCaption
+                                                                   message:foundationText
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:DOLCoreLocalizedString(@"OK")
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction* action) {
+      [window setHidden:true];
+    }]];
+    [window makeKeyAndVisible];
+    [window.rootViewController presentViewController:alert animated:true completion:nil];
+    return true;
+  }
+
   __block bool confirmed = false;
   
   dispatch_async(dispatch_get_main_queue(), ^{
@@ -69,7 +89,7 @@ static bool MsgAlert(const char* caption, const char* text, bool question, Commo
     window.windowLevel = UIWindowLevelAlert;
     
     UIWindow* topWindow = mainScene.windows.lastObject;
-    window.windowLevel = topWindow.windowLevel + 1;
+    window.windowLevel = topWindow ? (topWindow.windowLevel + 1) : UIWindowLevelAlert;
     
     UIAlertController* alert = [UIAlertController alertControllerWithTitle:foundationCaption message:foundationText preferredStyle:UIAlertControllerStyleAlert];
     

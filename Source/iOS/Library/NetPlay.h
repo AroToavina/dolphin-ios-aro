@@ -46,8 +46,13 @@ enum
   DOLNetPlayEventTraversalConnected = 11
 };
 
+typedef const void* DOLGameFileHandle;
+
 __attribute__((visibility("default"))) void* DOLNetPlayCreate(
     const char* const* game_paths, size_t game_count, const DOLNetPlayCallbacks* callbacks);
+__attribute__((visibility("default"))) void* DOLNetPlayCreateWithGames(
+    const DOLGameFileHandle* game_file_ptrs, size_t game_count,
+    const DOLNetPlayCallbacks* callbacks);
 __attribute__((visibility("default"))) bool DOLNetPlayConnect(
     void* session, bool host, bool traversal, const char* address_or_code, uint16_t port,
     const char* nickname, const char* traversal_server, uint16_t traversal_port,
@@ -58,6 +63,11 @@ __attribute__((visibility("default"))) bool DOLNetPlayGetExternalIP(char* output
                                                                      size_t output_size);
 __attribute__((visibility("default"))) bool DOLNetPlayGetLocalIP(char* output, size_t output_size);
 __attribute__((visibility("default"))) bool DOLNetPlaySetGame(void* session, const char* path);
+__attribute__((visibility("default"))) bool DOLNetPlayHasGameSelected(void* session);
+__attribute__((visibility("default"))) bool DOLNetPlayIsSelectedGameAvailable(void* session);
+__attribute__((visibility("default"))) bool DOLNetPlayGetSelectedGameTitle(void* session,
+                                                                          char* output,
+                                                                          size_t output_size);
 __attribute__((visibility("default"))) bool DOLNetPlayDoAllPlayersHaveGame(void* session);
 __attribute__((visibility("default"))) void DOLNetPlayStartGame(void* session);
 __attribute__((visibility("default"))) void DOLNetPlayStartClientGame(void* session);

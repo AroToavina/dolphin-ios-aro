@@ -8,6 +8,7 @@
 #import <string>
 #import <vector>
 
+#import "Common/FileUtil.h"
 #import "Core/Config/NetplaySettings.h"
 #import "Core/Config/MainSettings.h"
 #import "Core/Boot/Boot.h"
@@ -493,17 +494,17 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   s_active_netplay_controller = self;
   _statusLabel.text = hosting ? @"Starting NetPlay host…" : @"Connecting to NetPlay…";
   _games = [[GameFileCacheManager sharedManager] getGames];
-  std::vector<const char*> paths;
-  paths.reserve(_games.count);
+  std::vector<DOLGameFileHandle> gameHandles;
+  gameHandles.reserve(_games.count);
   for (GameFilePtrWrapper* wrapper in _games)
-    paths.push_back(wrapper.gameFile->GetFilePath().c_str());
+    gameHandles.push_back(&wrapper.gameFile);
 
   DOLNetPlayCallbacks callbacks = {};
   callbacks.context = (__bridge_retained void*)self;
   callbacks.on_event = NetPlayEvent;
   callbacks.on_boot_game = NetPlayBoot;
   _callbackContext = callbacks.context;
-  _nativeSession = DOLNetPlayCreate(paths.data(), paths.size(), &callbacks);
+  _nativeSession = DOLNetPlayCreateWithGames(gameHandles.data(), gameHandles.size(), &callbacks);
   if (!_nativeSession)
   {
     if (_callbackContext)
@@ -591,6 +592,8 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
       }
       if (hosting && self->_games.count > 0)
         [self setSelectedGame:self->_games.firstObject];
+      else if (hosting)
+        self->_gameLabel.text = @"Game: (No game in library)";
       [self updateControllerMappings];
     });
   });
@@ -769,6 +772,16 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
 {
   if (!_nativeSession)
     return;
+  if (!DOLNetPlayHasGameSelected(_nativeSession))
+  {
+    [self netPlayError:@"Please select a game before starting NetPlay."];
+    return;
+  }
+  if (!DOLNetPlayIsSelectedGameAvailable(_nativeSession))
+  {
+    [self netPlayError:@"The selected game file is not available in your local library."];
+    return;
+  }
   if (!DOLNetPlayDoAllPlayersHaveGame(_nativeSession))
   {
     [self netPlayError:@"At least one player does not have the selected game. Ask everyone to add the matching game file to their library."];
@@ -881,9 +894,20 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
     _chatView.text = _chatView.text.length ? [_chatView.text stringByAppendingFormat:@"\n%@", message] : message;
     [_chatView scrollRangeToVisible:NSMakeRange(_chatView.text.length, 0)];
     break;
-  case DOLNetPlayEventGame:
-    _gameLabel.text = [NSString stringWithFormat:@"Game: %@", message];
+  case DOLNetPlayEventGame: {
+    const bool available = DOLNetPlayIsSelectedGameAvailable(_nativeSession);
+    if (available)
+    {
+      _gameLabel.text = [NSString stringWithFormat:@"Game: %@", message];
+      _gameLabel.textColor = UIColor.labelColor;
+    }
+    else
+    {
+      _gameLabel.text = [NSString stringWithFormat:@"Game: %@ (Not found in library!)", message];
+      _gameLabel.textColor = UIColor.systemRedColor;
+    }
     break;
+  }
   case DOLNetPlayEventStatus:
   case DOLNetPlayEventIndex:
     _statusLabel.text = message;
@@ -915,7 +939,14 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
     break;
   case DOLNetPlayEventStartGame:
     if (_nativeSession)
+    {
+      if (!DOLNetPlayIsSelectedGameAvailable(_nativeSession))
+      {
+        [self netPlayError:@"The host started the game, but it was not found in your local library. Please add the matching game and try again."];
+        break;
+      }
       DOLNetPlayStartClientGame(_nativeSession);
+    }
     break;
   case DOLNetPlayEventPowerButton:
     if (_nativeSession)
@@ -1059,14 +1090,24 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
 - (BOOL)netPlayBootGame:(NSString*)path sessionData:(BootSessionData*)sessionData
 {
   if (_closeRequested || !_nativeSession)
+  {
+    delete sessionData;
     return NO;
+  }
+
+  const std::string boot_path = FoundationToCppString(path);
+  if (path.length == 0 || !File::Exists(boot_path))
+  {
+    delete sessionData;
+    [self netPlayError:@"The game file could not be found on disk to boot NetPlay."];
+    return NO;
+  }
 
   EmulationBootParameter* parameter = [[EmulationBootParameter alloc] init];
   parameter.bootType = EmulationBootTypeFile;
   parameter.path = path;
   parameter.netplayBootSessionData = sessionData;
   parameter.isNKit = false;
-  const std::string boot_path = FoundationToCppString(path);
   for (GameFilePtrWrapper* wrapper in _games)
   {
     if (wrapper.gameFile->GetFilePath() == boot_path)
