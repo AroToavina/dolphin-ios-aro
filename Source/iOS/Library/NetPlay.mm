@@ -134,7 +134,7 @@ public:
   }
 
   bool HasSelectedGame() const { return !m_current_game.game_id.empty(); }
-  bool IsSelectedGameAvailable() const
+  bool IsSelectedGameAvailable()
   {
     return HasSelectedGame() && (FindGameFile(m_current_game) != nullptr);
   }
@@ -254,14 +254,14 @@ public:
     return m_ui && m_ui->HasSelectedGame();
   }
 
-  bool IsSelectedGameAvailable() const
+  bool IsSelectedGameAvailable()
   {
     if (m_server && !m_server->GetSelectedGameName().empty())
       return FindGame(m_server->GetSelectedGameIdentifier()) != nullptr;
     return m_ui && m_ui->IsSelectedGameAvailable();
   }
 
-  std::string GetSelectedGameTitle() const
+  std::string GetSelectedGameTitle()
   {
     if (m_server && !m_server->GetSelectedGameName().empty())
       return m_server->GetSelectedGameName();
