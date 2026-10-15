@@ -494,10 +494,15 @@ void NetPlayBoot(void* context, const char* path, void* boot_session_data)
   s_active_netplay_controller = self;
   _statusLabel.text = hosting ? @"Starting NetPlay host…" : @"Connecting to NetPlay…";
   _games = [[GameFileCacheManager sharedManager] getGames];
-  std::vector<DOLGameFileHandle> gameHandles;
-  gameHandles.reserve(_games.count);
+  std::vector<std::shared_ptr<const UICommon::GameFile>> gameSharedPtrs;
+  gameSharedPtrs.reserve(_games.count);
   for (GameFilePtrWrapper* wrapper in _games)
-    gameHandles.push_back(&wrapper.gameFile);
+    gameSharedPtrs.push_back(wrapper.gameFile);
+
+  std::vector<DOLGameFileHandle> gameHandles;
+  gameHandles.reserve(gameSharedPtrs.size());
+  for (const auto& game : gameSharedPtrs)
+    gameHandles.push_back(&game);
 
   DOLNetPlayCallbacks callbacks = {};
   callbacks.context = (__bridge_retained void*)self;
